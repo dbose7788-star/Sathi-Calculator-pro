@@ -1,0 +1,113 @@
+name: Build Sathi APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+      - skin8-integration
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.2'
+          channel: stable
+          cache: true
+
+      - name: Create Android project
+        run: flutter create --platforms=android --project-name=sathi_calculator .
+
+      - name: Configure Android 5G support
+        run: |
+          mkdir -p android/app/src/main/kotlin/com/example/sathi_calculator
+
+          cat > android/app/src/main/kotlin/com/example/sathi_calculator/MainActivity.kt <<'EOF'
+          package com.example.sathi_calculator
+
+          import android.Manifest
+          import android.content.pm.PackageManager
+          import android.os.Build
+          import android.os.Bundle
+          import android.telephony.TelephonyDisplayInfo
+          import android.telephony.TelephonyManager
+          import androidx.core.app.ActivityCompat
+          import io.flutter.embedding.android.FlutterActivity
+          import io.flutter.embedding.engine.FlutterEngine
+          import io.flutter.plugin.common.MethodChannel
+
+          class MainActivity : FlutterActivity() {
+              private val CHANNEL = "sathi/soft5g"
+
+              override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+                  super.configureFlutterEngine(flutterEngine)
+
+                  MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+                      .setMethodCallHandler { call, result ->
+                          when (call.method) {
+                              "cellularType" -> result.success(getCellularType())
+                              else -> result.notImplemented()
+                          }
+                      }
+              }
+
+              private fun getCellularType(): String {
+                  if (ActivityCompat.checkSelfPermission(
+                          this,
+                          Manifest.permission.READ_PHONE_STATE
+                      ) != PackageManager.PERMISSION_GRANTED
+                  ) {
+                      return "Permission unavailable"
+                  }
+
+                  return try {
+                      val tm = getSystemService(TELEPHONY_SERVICE) as TelephonyManager
+
+                      when (tm.dataNetworkType) {
+                          TelephonyManager.NETWORK_TYPE_NR -> "5G"
+                          TelephonyManager.NETWORK_TYPE_LTE -> "4G"
+                          TelephonyManager.NETWORK_TYPE_HSPAP,
+                          TelephonyManager.NETWORK_TYPE_HSPA,
+                          TelephonyManager.NETWORK_TYPE_HSUPA,
+                          TelephonyManager.NETWORK_TYPE_HSDPA,
+                          TelephonyManager.NETWORK_TYPE_UMTS -> "3G"
+                          TelephonyManager.NETWORK_TYPE_GPRS,
+                          TelephonyManager.NETWORK_TYPE_EDGE,
+                          TelephonyManager.NETWORK_TYPE_CDMA,
+                          TelephonyManager.NETWORK_TYPE_1xRTT -> "2G"
+                          else -> "Unknown"
+                      }
+                  } catch (_: Exception) {
+                      "Unavailable"
+                  }
+              }
+          }
+          EOF
+
+          sed -i '/<manifest /a\    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>' android/app/src/main/AndroidManifest.xml
+
+      - name: Remove generated test
+        run: rm -rf test
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: sathi-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
