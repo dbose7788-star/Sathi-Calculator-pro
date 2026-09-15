@@ -35,6 +35,13 @@ jobs:
           sed -i 's/namespace = "[^"]*"/namespace = "com.sathi.softmodem"/' android/app/build.gradle
         fi
 
+      - name: Configure Soft Modem icon
+        run: |
+          mkdir -p android/app/src/main/res/drawable
+          printf "%s
+" "<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108"><path android:fillColor="#00E5FF" android:pathData="M54,12 L54,72 M35,72 L73,72 M42,84 L66,84 M28,60 L80,60 M35,48 L73,48 M42,36 L66,36 M48,24 L60,24"/></vector>" > android/app/src/main/res/drawable/ic_sathi_softmodem.xml
+          sed -i "s#android:icon="@mipmap/ic_launcher"#android:icon="@drawable/ic_sathi_softmodem"#" android/app/src/main/AndroidManifest.xml
+
       - name: Configure Android permissions
         run: |
           sed -i '/<manifest/a\    <uses-permission android:name="android.permission.RECORD_AUDIO"/>' android/app/src/main/AndroidManifest.xml
