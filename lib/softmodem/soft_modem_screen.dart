@@ -1,84 +1,236 @@
 import 'package:flutter/material.dart';
+import 'voice_engine.dart';
 
 class SoftModemScreen extends StatefulWidget {
   const SoftModemScreen({super.key});
+
   @override
   State<SoftModemScreen> createState() => _SoftModemScreenState();
 }
 
 class _SoftModemScreenState extends State<SoftModemScreen> {
+  final VoiceEngine _voice = VoiceEngine();
+
   double freq = 100.000;
   bool tx = false;
   bool scan = false;
-  int ch = 1;
+  int channel = 1;
+  int audioBytes = 0;
 
-  final presets = [88.1, 90.0, 92.7, 94.3, 97.6, 100.0, 102.5, 104.8, 107.5];
+  final List<double> presets = [
+    88.1, 90.1, 92.7, 94.9, 97.5,
+    99.1, 100.0, 101.5, 103.3, 105.5, 107.5
+  ];
 
-  void step(double n) => setState(() {
-    freq = (freq + n).clamp(76.0, 118.0);
-  });
+  Future<void> _togglePTT() async {
+    if (tx) {
+      await _voice.stop();
+      if (mounted) setState(() => tx = false);
+      return;
+    }
+
+    audioBytes = 0;
+
+    final ok = await _voice.start(
+      onAudio: (pcm) {
+        audioBytes += pcm.length;
+        if (mounted) setState(() {});
+      },
+    );
+
+    if (mounted) {
+      setState(() => tx = ok);
+      if (!ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Microphone permission required')),
+        );
+      }
+    }
+  }
+
+  void _tune(double amount) {
+    setState(() {
+      freq = (freq + amount).clamp(76.0, 118.0);
+    });
+  }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xff080b10),
-    appBar: AppBar(title: const Text('SATHI SOFT MODEM'), centerTitle: true),
-    body: ListView(padding: const EdgeInsets.all(16), children: [
-      Card(child: ListTile(
-        leading: Icon(Icons.radio, color: tx ? Colors.red : Colors.green),
-        title: Text(tx ? 'TX — VOICE ACTIVE' : 'RX / READY'),
-        trailing: Text('CH $ch'),
-      )),
-      const SizedBox(height: 14),
-      const Center(child: Text('CURRENT FREQUENCY')),
-      Center(child: Text('${freq.toStringAsFixed(3)} MHz',
-        style: const TextStyle(fontSize: 38, fontWeight: FontWeight.bold))),
-      Card(child: Column(children: [
-        const Text('PRECISION FINE TUNE'),
-        Slider(min: 76, max: 118, value: freq,
-          onChanged: (v) => setState(() => freq = v)),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-          IconButton(onPressed: () => step(-.100), icon: const Icon(Icons.keyboard_double_arrow_left)),
-          IconButton(onPressed: () => step(-.010), icon: const Icon(Icons.chevron_left)),
-          IconButton(onPressed: () => step(.010), icon: const Icon(Icons.chevron_right)),
-          IconButton(onPressed: () => step(.100), icon: const Icon(Icons.keyboard_double_arrow_right)),
-        ]),
-      ])),
-      const SizedBox(height: 18),
-      GestureDetector(
-        onTapDown: (_) => setState(() => tx = true),
-        onTapUp: (_) => setState(() => tx = false),
-        onTapCancel: () => setState(() => tx = false),
-        child: Container(height: 150,
-          decoration: BoxDecoration(shape: BoxShape.circle,
-            color: tx ? Colors.red : Colors.blueGrey),
-          child: Center(child: Text(tx ? 'TRANSMITTING' : 'HOLD TO TALK',
-            style: const TextStyle(fontWeight: FontWeight.bold)))),
+  void dispose() {
+    _voice.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Sathi Soft Modem'),
+        centerTitle: true,
       ),
-      const SizedBox(height: 18),
-      Row(children: [
-        Expanded(child: FilledButton.icon(
-          onPressed: () => setState(() => scan = !scan),
-          icon: Icon(scan ? Icons.stop : Icons.search),
-          label: Text(scan ? 'STOP SCAN' : 'SCAN'))),
-        const SizedBox(width: 10),
-        Expanded(child: FilledButton.icon(
-          onPressed: () {},
-          icon: const Icon(Icons.save),
-          label: const Text('SAVE'))),
-      ]),
-      const SizedBox(height: 16),
-      Card(child: Padding(padding: const EdgeInsets.all(12),
-        child: Wrap(spacing: 8, runSpacing: 8,
-          children: List.generate(presets.length, (i) => ChoiceChip(
-            label: Text('CH ${i + 1}  ${presets[i].toStringAsFixed(1)}'),
-            selected: ch == i + 1,
-            onSelected: (_) => setState(() {
-              ch = i + 1; freq = presets[i];
-            }),
-          ))))),
-      const SizedBox(height: 16),
-      const Card(child: SizedBox(height: 130,
-        child: Center(child: Text('RF SPECTRUM / SIGNAL ACTIVITY')))),
-    ]),
-  );
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    const Text(
+                      'FREQUENCY',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    Text(
+                      '${freq.toStringAsFixed(3)} MHz',
+                      style: const TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () => _tune(-0.100),
+                            child: const Text('-100 kHz'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () => _tune(-0.010),
+                            child: const Text('-10 kHz'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () => _tune(0.010),
+                            child: const Text('+10 kHz'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () => _tune(0.100),
+                            child: const Text('+100 kHz'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: _togglePTT,
+              child: Container(
+                width: double.infinity,
+                height: 150,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(width: 2),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      tx ? Icons.mic : Icons.mic_none,
+                      size: 58,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      tx ? 'TRANSMITTING VOICE' : 'PUSH TO TALK',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (tx)
+                      Text(
+                        'Captured: ${audioBytes ~/ 1024} KB',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'CHANNEL PRESETS',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: List.generate(
+                        presets.length,
+                        (i) => ChoiceChip(
+                          label: Text(
+                            'CH ${i + 1}  ${presets[i].toStringAsFixed(1)}',
+                          ),
+                          selected: channel == i + 1,
+                          onSelected: (_) {
+                            setState(() {
+                              channel = i + 1;
+                              freq = presets[i];
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => setState(() => scan = !scan),
+                    icon: Icon(scan ? Icons.stop : Icons.search),
+                    label: Text(scan ? 'STOP SCAN' : 'SCAN'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.save),
+                    label: const Text('SAVE'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: SizedBox(
+                height: 150,
+                child: Center(
+                  child: Text(
+                    scan
+                        ? 'RF SCAN ACTIVE\n${freq.toStringAsFixed(3)} MHz'
+                        : 'RF SPECTRUM / SIGNAL ACTIVITY',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
