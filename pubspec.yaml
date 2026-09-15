@@ -13,6 +13,7 @@ dependencies:
   connectivity_plus: ^6.1.5
   decimal: ^3.2.6
   flutter_tts: ^4.2.5
+  record: ^6.1.1
   cupertino_icons: ^1.0.8
 
 dev_dependencies:
