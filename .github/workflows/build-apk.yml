@@ -23,6 +23,18 @@ jobs:
       - name: Create Android project
         run: flutter create --platforms=android .
 
+    - name: Configure Soft Modem identity
+      run: |
+        sed -i 's/android:label="[^"]*"/android:label="Sathi Soft Modem"/' android/app/src/main/AndroidManifest.xml
+        if [ -f android/app/build.gradle.kts ]; then
+          sed -i 's/applicationId = "[^"]*"/applicationId = "com.sathi.softmodem"/' android/app/build.gradle.kts
+          sed -i 's/namespace = "[^"]*"/namespace = "com.sathi.softmodem"/' android/app/build.gradle.kts
+        elif [ -f android/app/build.gradle ]; then
+          sed -i 's/applicationId "[^"]*"/applicationId "com.sathi.softmodem"/' android/app/build.gradle
+          sed -i 's/namespace "[^"]*"/namespace "com.sathi.softmodem"/' android/app/build.gradle
+          sed -i 's/namespace = "[^"]*"/namespace = "com.sathi.softmodem"/' android/app/build.gradle
+        fi
+
       - name: Configure Android permissions
         run: |
           sed -i '/<manifest/a\    <uses-permission android:name="android.permission.RECORD_AUDIO"/>' android/app/src/main/AndroidManifest.xml
