@@ -1,5 +1,5 @@
-name: sathi_calculator
-description: Sathi — Your Everyday Calculation Companion.
+name: sathi_soft_modem
+description: Sathi Soft Modem - Offline voice and RF-SDR interface.
 publish_to: 'none'
 version: 1.0.0+1
 
